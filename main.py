@@ -2,10 +2,13 @@ import googlemaps
 import json
 import pandas as pd
 import time
+from argparse import ArgumentParser
 from datetime import datetime
 from apikey import _MAPS_API_KEY
 
-REGIONS = ["NORTHEAST", "MIDWEST", "SOUTH", "WEST"]
+REGIONS = ["NORTHEAST", "MIDWEST", "SOUTH", "WEST",
+           "EAST", # northeast + midwest + south
+           "USAMAINLAND"] # all mainland states
 lat = "LATITUDE"
 lng = "LONGITUDE"
 
@@ -70,23 +73,33 @@ def get_allresponses_singleorigin(gmaps, origins, dest_splits, gmatrices):
     print("\n")
     return row
 
+def split_destinations(destinations):
+    # split the destinations into groups of 20
+    # this is the maximum number of destinations that can be sent in a single request (-5 for safety)
+    num_per_request = 20
+    dest_splits = []
+    n = len(destinations)
+    for i in range(0, n, num_per_request):
+        dest_splits.append(destinations[i:i+num_per_request])
+    return dest_splits
+
 def main():
     # useful hardcoded values
     # origins = ["40.649782,-74.019743","41.380791,-73.517948"]
     # destinations = ["40.649782,-74.019743","41.380791,-73.517948"]
-    REGION = "NORTHEAST"
+    parser = ArgumentParser()
+    parser.add_argument("--region", type=str, default="NORTHEAST")
+    REGION = parser.parse_args().region
     gmaps = googlemaps.Client(key=_MAPS_API_KEY)
     (origins, destinations) = build_origins_destinations(REGION)
-    req1_destinations = destinations[:20]
-    req2_destinations = [d for d in destinations if d not in req1_destinations]
-    dest_splits = [req1_destinations, req2_destinations]
+    dest_splits = split_destinations(destinations)
     gmatrices = []
     df_data = []
     for origin in origins:
         row = get_allresponses_singleorigin(gmaps, [origin], dest_splits, gmatrices)
         df_data.append(row)
     df = pd.DataFrame(df_data)
-    df.to_csv(f"{REGION}matrix.csv", index=True)
+    df.to_csv(f"{REGION}matrix.csv", index=False)
             
     # Dump the dictionary to a JSON file just in case we need the raw response again
     with open(f"{REGION}dump.json", "w") as f:
